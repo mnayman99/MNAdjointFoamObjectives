@@ -57,14 +57,14 @@ class objectiveMoment
 :
     public objectiveIncompressible
 {
-    // Private data
+protected:
+    // Protected data
 
         labelHashSet momentPatches_;
         vector momentDirection_;
         vector rotationCentre_;
         scalar Aref_;
         scalar lRef_;
-        scalar rhoInf_;
         scalar UInf_;
         scalar invDenom_;
 

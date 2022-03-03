@@ -69,8 +69,8 @@ objectiveForce::objectiveForce
     ),
     forceDirection_(dict.get<vector>("direction")),
     Aref_(dict.get<scalar>("Aref")),
-    rhoInf_(dict.get<scalar>("rhoInf")),
     UInf_(dict.get<scalar>("UInf")),
+    invDenom_(2./(UInf_*UInf_*Aref_)),
     stressXPtr_
     (
         Foam::createZeroFieldPtr<vector>
@@ -91,7 +91,8 @@ objectiveForce::objectiveForce
         (
             mesh_, "stressZ", dimLength/sqr(dimTime)
         )
-    )
+    ),
+    devReff_(vars_.turbulence()->devReff()())
 {
     // Sanity check and print info
     if (forcePatches_.empty())
@@ -127,22 +128,20 @@ scalar objectiveForce::J()
 
 
     const volScalarField& p = vars_.pInst();
-    const autoPtr<incompressible::turbulenceModel>&
-       turbulence = vars_.turbulence();
-
-    volSymmTensorField devReff(turbulence->devReff());
+    devReff_ = vars_.turbulence()->devReff()();
 
     for (const label patchI : forcePatches_)
     {
+        const fvPatch& patch = mesh_.boundary()[patchI];
+        const vectorField& Sf = patch.Sf();
         pressureForce += gSum
         (
-            mesh_.Sf().boundaryField()[patchI] * p.boundaryField()[patchI]
+            Sf * p.boundaryField()[patchI]
         );
         // Viscous term calculated using the full tensor derivative
         viscousForce += gSum
         (
-            devReff.boundaryField()[patchI]
-          & mesh_.Sf().boundaryField()[patchI]
+            devReff_.boundaryField()[patchI] & Sf
         );
     }
 
@@ -150,9 +149,7 @@ scalar objectiveForce::J()
 
     scalar force = cumulativeForce & forceDirection_;
 
-    // Intentionally not using denom - derived might implement virtual denom()
-    // function differently
-    scalar Cforce = force/(0.5*UInf_*UInf_*Aref_);
+    scalar Cforce = force*invDenom_;
 
     DebugInfo
         << "Force|Coeff " << force << "|" << Cforce << endl;
@@ -163,11 +160,25 @@ scalar objectiveForce::J()
 }
 
 
+void objectiveMoment::update_meanValues()
+{
+    if (computeMeanFields_)
+    {
+        const volVectorField& U = vars_.U();
+        const autoPtr<incompressible::RASModelVariables>&
+           turbVars = vars_.RASModelVariables();
+        const singlePhaseTransportModel& lamTransp = vars_.laminarTransport();
+
+        devReff_ = turbVars->devReff(lamTransp, U)();
+    }
+}
+
+
 void objectiveForce::update_boundarydJdp()
 {
     for (const label patchI : forcePatches_)
     {
-        bdJdpPtr_()[patchI] = forceDirection_/denom();
+        bdJdpPtr_()[patchI] = forceDirection_*invDenom_;
     }
 }
 
@@ -176,24 +187,17 @@ void objectiveForce::update_dSdbMultiplier()
 {
     // Compute contributions with mean fields, if present
     const volScalarField& p = vars_.p();
-    const volVectorField& U = vars_.U();
-    const autoPtr<incompressible::RASModelVariables>&
-        turbVars = vars_.RASModelVariables();
-    const singlePhaseTransportModel& lamTransp = vars_.laminarTransport();
-
-    tmp<volSymmTensorField> tdevReff = turbVars->devReff(lamTransp, U);
-    const volSymmTensorField& devReff = tdevReff();
-
+    
     for (const label patchI : forcePatches_)
     {
         bdSdbMultPtr_()[patchI] =
         (
             (
-                forceDirection_& devReff.boundaryField()[patchI]
+                forceDirection_& devReff_.boundaryField()[patchI]
             )
           + (forceDirection_)*p.boundaryField()[patchI]
         )
-       /denom();
+       *invDenom_;
     }
 }
 
@@ -206,9 +210,6 @@ void objectiveForce::update_dxdbMultiplier()
     const autoPtr<incompressible::RASModelVariables>&
         turbVars = vars_.RASModelVariables();
     const singlePhaseTransportModel& lamTransp = vars_.laminarTransport();
-
-    //tmp<volSymmTensorField> tdevReff = turbVars->devReff(lamTransp, U);
-    //const volSymmTensorField& devReff = tdevReff();
 
     volScalarField nuEff(lamTransp.nu() + turbVars->nutRef());
     volTensorField gradU(fvc::grad(U));
@@ -263,7 +264,7 @@ void objectiveForce::update_dxdbMultiplier()
             )
             + (forceDirection_ & nf)*gradp.boundaryField()[patchI]
         )
-        /denom();
+        *invDenom_;
     }
 }
 
@@ -275,20 +276,8 @@ void objectiveForce::update_dJdStressMultiplier()
         const fvPatch& patch = mesh_.boundary()[patchI];
         tmp<vectorField> tnf = patch.nf();
         const vectorField& nf = tnf();
-        bdJdStressPtr_()[patchI] = (forceDirection_ * nf)/denom();
+        bdJdStressPtr_()[patchI] = (forceDirection_ * nf)*invDenom_;
     }
-}
-
-
-scalar objectiveForce::denom() const
-{
-    return 0.5*UInf_*UInf_*Aref_;
-}
-
-
-const vector& objectiveForce::forceDirection() const
-{
-    return forceDirection_;
 }
 
 

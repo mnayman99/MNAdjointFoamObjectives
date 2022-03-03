@@ -73,9 +73,8 @@ objectiveMoment::objectiveMoment
     rotationCentre_(dict.get<vector>("rotationCenter")),
     Aref_(dict.get<scalar>("Aref")),
     lRef_(dict.get<scalar>("lRef")),
-    rhoInf_(dict.get<scalar>("rhoInf")),
     UInf_(dict.get<scalar>("UInf")),
-    invDenom_(2./(rhoInf_*UInf_*UInf_*Aref_*lRef_)),
+    invDenom_(2./(UInf_*UInf_*Aref_*lRef_)),
     stressXPtr_
     (
         Foam::createZeroFieldPtr<vector>
@@ -142,13 +141,13 @@ scalar objectiveMoment::J()
         vectorField dx(patch.Cf() - rotationCentre_);
         pressureMoment += gSum
         (
-            rhoInf_*(dx ^ Sf)*p.boundaryField()[patchI]
+            (dx ^ Sf)*p.boundaryField()[patchI]
         );
 
         // Viscous term calculated using the full tensor derivative
         viscousMoment += gSum
         (
-            rhoInf_*(dx^(devReff_.boundaryField()[patchI] & Sf))
+            (dx^(devReff_.boundaryField()[patchI] & Sf))
         );
     }
 
@@ -183,7 +182,7 @@ void objectiveMoment::update_boundarydJdp()
     {
         const fvPatch& patch = mesh_.boundary()[patchI];
         vectorField dx(patch.Cf() - rotationCentre_);
-        bdJdpPtr_()[patchI] = (momentDirection_ ^ dx)*invDenom_*rhoInf_;
+        bdJdpPtr_()[patchI] = (momentDirection_ ^ dx)*invDenom_;
     }
 }
 
@@ -199,7 +198,6 @@ void objectiveMoment::update_dSdbMultiplier()
         bdSdbMultPtr_()[patchI] =
             (
                 (
-                    rhoInf_*
                     (
                         (momentDirection_^dx) &
                         (
@@ -207,7 +205,7 @@ void objectiveMoment::update_dSdbMultiplier()
                         )
                     )
                 )
-              + rhoInf_ * (momentDirection_^dx) * p.boundaryField()[patchI]
+              + (momentDirection_^dx) * p.boundaryField()[patchI]
             )
            *invDenom_;
     }
@@ -224,6 +222,7 @@ void objectiveMoment::update_dxdbMultiplier()
     const singlePhaseTransportModel& lamTransp = vars_.laminarTransport();
     volScalarField nuEff(lamTransp.nu() + turbVars->nutRef());
     volTensorField gradU(fvc::grad(U));
+    volTensorField::Boundary& gradUbf = gradU.boundaryFieldRef();
 
     // Explicitly correct the boundary gradient to get rid of the
     // tangential component
@@ -232,10 +231,8 @@ void objectiveMoment::update_dxdbMultiplier()
         const fvPatch& patch = mesh_.boundary()[patchI];
         if (isA<wallFvPatch>(patch))
         {
-            tmp<vectorField> tnf = mesh_.boundary()[patchI].nf();
-            const vectorField& nf = tnf();
-            gradU.boundaryFieldRef()[patchI] =
-                nf * U.boundaryField()[patchI].snGrad();
+            tmp<vectorField> nf = patch.nf();
+            gradUbf[patchI] = nf*U.boundaryField()[patchI].snGrad();
         }
     }
 
@@ -277,7 +274,7 @@ void objectiveMoment::update_dxdbMultiplier()
             )
             + (momentDirection_ & (dx^nf))*gradp.boundaryField()[patchI]
         )
-        *invDenom_*rhoInf_;
+        *invDenom_;
     }
 }
 

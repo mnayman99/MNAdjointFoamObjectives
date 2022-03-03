@@ -1,46 +1,3 @@
-/* TURBULENCE MODEL VARIABLE REFS */
-turbulenceModels/turbulenceModelVariables/RAS/RASModelVariables/RASModelVariables.C
-turbulenceModels/turbulenceModelVariables/RAS/laminar/laminar.C
-turbulenceModels/turbulenceModelVariables/RAS/SpalartAllmaras/SpalartAllmaras.C
-turbulenceModels/turbulenceModelVariables/RAS/kOmegaSST/kOmegaSST.C
-turbulenceModels/turbulenceModelVariables/RAS/kEpsilon/kEpsilon.C
-turbulenceModels/turbulenceModelVariables/RAS/LaunderSharmaKE/LaunderSharmaKE.C
-
-/* VARIABLES SET */
-solvers/variablesSet/variablesSet/variablesSet.C
-solvers/variablesSet/incompressible/incompressibleVars.C
-solvers/variablesSet/incompressibleAdjointMeanFlow/incompressibleAdjointMeanFlowVars.C
-solvers/variablesSet/incompressibleAdjoint/incompressibleAdjointVars.C
-
-/* SOLVER CONTROL */
-solvers/solverControl/solverControl/solverControl.C
-solvers/solverControl/SIMPLEControl/SIMPLEControl/SIMPLEControl.C
-solvers/solverControl/SIMPLEControl/singleRun/SIMPLEControlSingleRun.C
-solvers/solverControl/SIMPLEControl/optimisation/SIMPLEControlOpt.C
-
-/* SOLVERS */
-solvers/solver/solver.C
-solvers/primalSolvers/primalSolver/primalSolver.C
-solvers/primalSolvers/incompressible/incompressiblePrimalSolver/incompressiblePrimalSolver.C
-solvers/primalSolvers/incompressible/simple/simple.C
-solvers/primalSolvers/incompressible/RASTurbulenceModel/RASTurbulenceModel.C
-solvers/adjointSolvers/adjointSolver/adjointSolver.C
-solvers/adjointSolvers/incompressible/incompressibleAdjointSolver/incompressibleAdjointSolver.C
-solvers/adjointSolvers/incompressible/adjointSimple/adjointSimple.C
-
-/* ADJOINT SOLVER MANAGER */
-solvers/adjointSolverManager/adjointSolverManager.C
-
-/* ZERO ATC CELLS OPTIONS*/
-ATCModel/zeroATCcells/zeroATCcells/zeroATCcells.C
-ATCModel/zeroATCcells/faceCells/faceCells.C
-ATCModel/zeroATCcells/pointCells/pointCells.C
-
-/* ATC MODELS */
-ATCModel/ATCModel/ATCModel.C
-ATCModel/ATCstandard/ATCstandard.C
-ATCModel/ATCUaGradU/ATCUaGradU.C
-ATCModel/cancelATC/cancelATC.C
 
 /* OBJECTIVES */
 objectives/objective/objective.C
@@ -177,4 +134,4 @@ optimisation/optimisationManager/optimisationManager/optimisationManager.C
 optimisation/optimisationManager/singleRun/singleRun.C
 optimisation/optimisationManager/steadyOptimisation/steadyOptimisation.C
 
-LIB = $(FOAM_LIBBIN)/libadjointOptimisation
+LIB = $(FOAM_LIBBIN)/libMNadjointOptimisation

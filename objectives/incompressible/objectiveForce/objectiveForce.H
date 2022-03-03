@@ -67,12 +67,14 @@ protected:
         labelHashSet forcePatches_;
         vector forceDirection_;
         scalar Aref_;
-        scalar rhoInf_;
         scalar UInf_;
 
         autoPtr<volVectorField> stressXPtr_;
         autoPtr<volVectorField> stressYPtr_;
         autoPtr<volVectorField> stressZPtr_;
+
+        // Store this in order to computed only once per objective call
+        volSymmTensorField devReff_;
 
 
 public:
@@ -102,6 +104,9 @@ public:
         //- Return the objective function value
         scalar J();
 
+        //- Update mean drag and lift values
+        void update_meanValues();
+
         //- Update values to be added to the adjoint wall velocity
         void update_boundarydJdp();
 
@@ -114,11 +119,6 @@ public:
         //- Update dJ/dStress multiplier
         void update_dJdStressMultiplier();
 
-        //- Return denominator, without density
-        virtual scalar denom() const;
-
-        //- Return force direction
-        const vector& forceDirection() const;
 };
 
 
