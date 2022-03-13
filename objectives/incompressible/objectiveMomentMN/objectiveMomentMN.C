@@ -40,18 +40,18 @@ namespace objectives
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
-defineTypeNameAndDebug(objectiveMoment, 0);
+defineTypeNameAndDebug(objectiveMomentMN, 0);
 addToRunTimeSelectionTable
 (
     objectiveIncompressible,
-    objectiveMoment,
+    objectiveMomentMN,
     dictionary
 );
 
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-objectiveMoment::objectiveMoment
+objectiveMomentMN::objectiveMomentMN
 (
     const fvMesh& mesh,
     const dictionary& dict,
@@ -67,7 +67,7 @@ objectiveMoment::objectiveMoment
             dict.get<wordRes>("patches")
         ).sortedToc()
     ),
-    momentDirection_(dict.get<vector>("direction")),
+    momentDirection_(dict.get<vector>("axis")),
     rotationCentre_(dict.get<vector>("rotationCenter")),
     Aref_(dict.get<scalar>("Aref")),
     lRef_(dict.get<scalar>("lRef")),
@@ -122,7 +122,7 @@ objectiveMoment::objectiveMoment
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-scalar objectiveMoment::J()
+scalar objectiveMomentMN::J()
 {
     vector pressureMoment(Zero);
     vector viscousMoment(Zero);
@@ -160,7 +160,7 @@ scalar objectiveMoment::J()
 }
 
 
-void objectiveMoment::update_meanValues()
+void objectiveMomentMN::update_meanValues()
 {
     if (computeMeanFields_)
     {
@@ -174,7 +174,7 @@ void objectiveMoment::update_meanValues()
 }
 
 
-void objectiveMoment::update_boundarydJdp()
+void objectiveMomentMN::update_boundarydJdp()
 {
     for (const label patchI : momentPatches_)
     {
@@ -185,7 +185,7 @@ void objectiveMoment::update_boundarydJdp()
 }
 
 
-void objectiveMoment::update_dSdbMultiplier()
+void objectiveMomentMN::update_dSdbMultiplier()
 {
     const volScalarField& p = vars_.p();
 
@@ -210,7 +210,7 @@ void objectiveMoment::update_dSdbMultiplier()
 }
 
 
-void objectiveMoment::update_dxdbMultiplier()
+void objectiveMomentMN::update_dxdbMultiplier()
 {
     const volScalarField& p = vars_.p();
     const volVectorField& U = vars_.U();
@@ -277,7 +277,7 @@ void objectiveMoment::update_dxdbMultiplier()
 }
 
 
-void objectiveMoment::update_dxdbDirectMultiplier()
+void objectiveMomentMN::update_dxdbDirectMultiplier()
 {
     const volScalarField& p = vars_.p();
 

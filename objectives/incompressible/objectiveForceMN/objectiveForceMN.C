@@ -40,18 +40,18 @@ namespace objectives
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
-defineTypeNameAndDebug(objectiveForce, 0);
+defineTypeNameAndDebug(objectiveForceMN, 0);
 addToRunTimeSelectionTable
 (
     objectiveIncompressible,
-    objectiveForce,
+    objectiveForceMN,
     dictionary
 );
 
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-objectiveForce::objectiveForce
+objectiveForceMN::objectiveForceMN
 (
     const fvMesh& mesh,
     const dictionary& dict,
@@ -120,7 +120,7 @@ objectiveForce::objectiveForce
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-scalar objectiveForce::J()
+scalar objectiveForceMN::J()
 {
     vector pressureForce(Zero);
     vector viscousForce(Zero);
@@ -160,7 +160,7 @@ scalar objectiveForce::J()
 }
 
 
-void objectiveForce::update_meanValues()
+void objectiveForceMN::update_meanValues()
 {
     if (computeMeanFields_)
     {
@@ -174,7 +174,7 @@ void objectiveForce::update_meanValues()
 }
 
 
-void objectiveForce::update_boundarydJdp()
+void objectiveForceMN::update_boundarydJdp()
 {
     for (const label patchI : forcePatches_)
     {
@@ -183,7 +183,7 @@ void objectiveForce::update_boundarydJdp()
 }
 
 
-void objectiveForce::update_dSdbMultiplier()
+void objectiveForceMN::update_dSdbMultiplier()
 {
     // Compute contributions with mean fields, if present
     const volScalarField& p = vars_.p();
@@ -202,7 +202,7 @@ void objectiveForce::update_dSdbMultiplier()
 }
 
 
-void objectiveForce::update_dxdbMultiplier()
+void objectiveForceMN::update_dxdbMultiplier()
 {
     const volScalarField& p = vars_.p();
     const volVectorField& U = vars_.U();
@@ -269,7 +269,7 @@ void objectiveForce::update_dxdbMultiplier()
 }
 
 
-void objectiveForce::update_dJdStressMultiplier()
+void objectiveForceMN::update_dJdStressMultiplier()
 {
     for (const label patchI : forcePatches_)
     {

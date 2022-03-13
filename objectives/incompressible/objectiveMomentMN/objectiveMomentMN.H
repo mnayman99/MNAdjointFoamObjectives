@@ -52,10 +52,10 @@ namespace objectives
 {
 
 /*---------------------------------------------------------------------------*\
-                       Class objectiveMoment Declaration
+                       Class objectiveMomentMN Declaration
 \*---------------------------------------------------------------------------*/
 
-class objectiveMoment
+class objectiveMomentMN
 :
     public objectiveIncompressible
 {
@@ -87,7 +87,7 @@ public:
     // Constructors
 
         //- from components
-        objectiveMoment
+        objectiveMomentMN
         (
             const fvMesh& mesh,
             const dictionary& dict,
@@ -97,7 +97,7 @@ public:
 
 
     //- Destructor
-    virtual ~objectiveMoment() = default;
+    virtual ~objectiveMomentMN() = default;
 
 
     // Member Functions

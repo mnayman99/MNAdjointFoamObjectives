@@ -53,10 +53,10 @@ namespace objectives
 {
 
 /*---------------------------------------------------------------------------*\
-                        Class objectiveForce Declaration
+                        Class objectiveForceMN Declaration
 \*---------------------------------------------------------------------------*/
 
-class objectiveForce
+class objectiveForceMN
 :
     public objectiveIncompressible
 {
@@ -87,7 +87,7 @@ public:
     // Constructors
 
         //- Construct from components
-        objectiveForce
+        objectiveForceMN
         (
             const fvMesh& mesh,
             const dictionary& dict,
@@ -97,7 +97,7 @@ public:
 
 
     //- Destructor
-    virtual ~objectiveForce() = default;
+    virtual ~objectiveForceMN() = default;
 
 
     // Member Functions
