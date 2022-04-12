@@ -3,5 +3,6 @@ objectives/incompressible/objectiveForceMN/objectiveForceMN.C
 objectives/incompressible/objectiveMomentMN/objectiveMomentMN.C
 objectives/incompressible/objectiveRearLiftMN/objectiveRearLiftMN.C
 objectives/incompressible/objectiveDeltaCLMN/objectiveDeltaCLMN.C
+objectives/incompressible/objectiveEfficiencyMN/objectiveEfficiencyMN.C
 
-LIB = /home/mnayman/libMNadjointObjectives
+LIB = $(FOAM_USER_LIBBIN)/libMNadjointObjectives

@@ -286,7 +286,6 @@ void objectiveMomentMN::update_dxdbDirectMultiplier()
         const fvPatch& patch = mesh_.boundary()[patchI];
         tmp<vectorField> tnf = patch.nf();
         const vectorField& nf = tnf();
-        const vectorField dx(patch.Cf() - rotationCentre_);
         const vectorField force
         (
             (

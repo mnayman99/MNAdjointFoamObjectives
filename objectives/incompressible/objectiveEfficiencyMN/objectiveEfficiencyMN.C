@@ -27,7 +27,7 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include "objectiveDeltaCLMN.H"
+#include "objectiveEfficiencyMN.H"
 #include "addToRunTimeSelectionTable.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
@@ -40,18 +40,18 @@ namespace objectives
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
-defineTypeNameAndDebug(objectiveDeltaCLMN, 0);
+defineTypeNameAndDebug(objectiveEfficiencyMN, 0);
 addToRunTimeSelectionTable
 (
     objectiveIncompressible,
-    objectiveDeltaCLMN,
+    objectiveEfficiencyMN,
     dictionary
 );
 
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-objectiveDeltaCLMN::objectiveDeltaCLMN
+objectiveEfficiencyMN::objectiveEfficiencyMN
 (
     const fvMesh& mesh,
     const dictionary& dict,
@@ -60,22 +60,15 @@ objectiveDeltaCLMN::objectiveDeltaCLMN
 )
 :
     objectiveIncompressible(mesh, dict, adjointSolverName, primalSolverName),
-    objectivePatches_
+    forcePatches_
     (
         mesh_.boundaryMesh().patchSet
         (
             dict.get<wordRes>("patches")
         ).sortedToc()
     ),
-    forceDirection_(dict.get<vector>("liftDir")),
-    momentDirection_(dict.get<vector>("axis")),
-    rotationCentre_(dict.get<vector>("rotationCenter")),
-    Aref_(dict.get<scalar>("Aref")),
-    lRef_(dict.get<scalar>("lRef")),
-    UInf_(dict.get<scalar>("UInf")),
-    invDenom_(2./(UInf_*UInf_*Aref_*lRef_)),
-    // Moment denominator has factor of two incorporated already
-    invMomDenom_(4./(UInf_*UInf_*Aref_*lRef_)),
+    liftDirection_(dict.get<vector>("liftDirection")),
+    dragDirection_(dict.get<vector>("dragDirection")),
     stressXPtr_
     (
         Foam::createZeroFieldPtr<vector>
@@ -100,7 +93,7 @@ objectiveDeltaCLMN::objectiveDeltaCLMN
     devReff_(vars_.turbulence()->devReff()())
 {
     // Sanity check and print info
-    if (objectivePatches_.empty())
+    if (forcePatches_.empty())
     {
         FatalErrorInFunction
             << "No valid patch name on which to minimize " << type() << endl
@@ -109,7 +102,7 @@ objectiveDeltaCLMN::objectiveDeltaCLMN
     if (debug)
     {
         Info<< "Minimizing " << type() << " in patches:" << endl;
-        for (const label patchI : objectivePatches_)
+        for (const label patchI : forcePatches_)
         {
             Info<< "\t " << mesh_.boundary()[patchI].name() << endl;
         }
@@ -120,42 +113,25 @@ objectiveDeltaCLMN::objectiveDeltaCLMN
     bdSdbMultPtr_.reset(createZeroBoundaryPtr<vector>(mesh_));
     bdxdbMultPtr_.reset(createZeroBoundaryPtr<vector>(mesh_));
     bdJdStressPtr_.reset(createZeroBoundaryPtr<tensor>(mesh_));
-    bdxdbDirectMultPtr_.reset(createZeroBoundaryPtr<vector>(mesh_));
 }
 
 
 // * * * * * * * * * * * * * * * Member Functions  * * * * * * * * * * * * * //
 
-scalar objectiveDeltaCLMN::J()
+scalar objectiveEfficiencyMN::J()
 {
     vector pressureForce(Zero);
     vector viscousForce(Zero);
     vector cumulativeForce(Zero);
 
-    vector pressureMoment(Zero);
-    vector viscousMoment(Zero);
-    vector cumulativeMoment(Zero);
 
-    // Update field here and use the same value for all functions
     const volScalarField& p = vars_.pInst();
     devReff_ = vars_.turbulence()->devReff()();
 
-    for (const label patchI : objectivePatches_)
+    for (const label patchI : forcePatches_)
     {
         const fvPatch& patch = mesh_.boundary()[patchI];
         const vectorField& Sf = patch.Sf();
-        vectorField dx(patch.Cf() - rotationCentre_);
-        pressureMoment += gSum
-        (
-            (dx ^ Sf)*p.boundaryField()[patchI]
-        );
-
-        // Viscous term calculated using the full tensor derivative
-        viscousMoment += gSum
-        (
-            (dx^(devReff_.boundaryField()[patchI] & Sf))
-        );
-
         pressureForce += gSum
         (
             Sf * p.boundaryField()[patchI]
@@ -167,30 +143,20 @@ scalar objectiveDeltaCLMN::J()
         );
     }
 
-    cumulativeMoment = pressureMoment + viscousMoment;
     cumulativeForce = pressureForce + viscousForce;
 
-    scalar moment = cumulativeMoment & momentDirection_;
-    scalar Cm = moment*invMomDenom_;
+    scalar efficiency = (cumulativeForce & liftDirection_) / (cumulativeForce & dragDirection_);
 
-    scalar force = cumulativeForce & forceDirection_;
-    scalar Cforce = force*invDenom_;
+    DebugInfo
+        << "Effieciency " << efficiency << endl;
 
-    // Calculation of delta lift from force balance
-    scalar deltaLift = (2. * moment/lRef_) - force;
-    scalar dCL = deltaLift * invDenom_;
+    J_ = efficiency;
 
-    DebugInfo<<
-        "Moment|Coeff " << moment << "|" << Cm << endl <<
-        "Force|Coeff " << force << "|" << Cforce << endl <<
-        "Delta Lift|Coeff " << deltaLift << "|" << dCL << endl;
-
-    J_ = dCL;
-    return dCL;
+    return efficiency;
 }
 
 
-void objectiveDeltaCLMN::update_meanValues()
+void objectiveEfficiencyMN::update_meanValues()
 {
     if (computeMeanFields_)
     {
@@ -204,65 +170,72 @@ void objectiveDeltaCLMN::update_meanValues()
 }
 
 
-void objectiveDeltaCLMN::update_boundarydJdp()
+void objectiveEfficiencyMN::update_boundarydJdp()
 {
-    for (const label patchI : objectivePatches_)
-    {
-        const fvPatch& patch = mesh_.boundary()[patchI];
-        vectorField dx(patch.Cf() - rotationCentre_);
-        bdJdpPtr_()[patchI] = (momentDirection_ ^ dx)*invMomDenom_ - forceDirection_*invDenom_;
-    }
-}
-
-
-void objectiveDeltaCLMN::update_dSdbMultiplier()
-{
+    // Compute contributions with mean fields, if present
     const volScalarField& p = vars_.p();
 
-    for (const label patchI : objectivePatches_)
+    for (const label patchI : forcePatches_)
     {
         const fvPatch& patch = mesh_.boundary()[patchI];
-        const vectorField dx(patch.Cf() - rotationCentre_);
-        bdSdbMultPtr_()[patchI] =
-        (
-            (
-                (
-                    (momentDirection_^dx) &
-                    (
-                        devReff_.boundaryField()[patchI]
-                    )
-                )
-            )
-          + (momentDirection_^dx) * p.boundaryField()[patchI]
-        )
-        *invMomDenom_
-        -
-        (
-            (
-                forceDirection_& devReff_.boundaryField()[patchI]
-            )
-          + (forceDirection_)*p.boundaryField()[patchI]
-        )
-        *invDenom_;
+        tmp<vectorField> tnf = patch.nf();
+        const vectorField& nf = tnf();
+        
+        // First calculate the total force coefficient vector on the specific patch, which will be decomposed into lift and drag
+        // Total force is calculated using nf to get a face-centred value for sensitivity contributions
+        // vectorFields and scalarFields used, as the results isn't a simple sum as in the objective function derivation
+        const vectorField totalForce((nf * p.boundaryField()[patchI]) + (devReff_.boundaryField()[patchI] & nf));
+        const scalarField liftForce(totalForce & liftDirection_);
+        const scalarField dragForce(totalForce & dragDirection_);
+
+        bdJdpPtr_()[patchI] = (dragForce * liftDirection_ - liftForce * dragDirection_)/(dragForce * dragForce);
     }
 }
 
 
-void objectiveDeltaCLMN::update_dxdbMultiplier()
+void objectiveEfficiencyMN::update_dSdbMultiplier()
+{
+    // Compute contributions with mean fields, if present
+    const volScalarField& p = vars_.p();
+    
+    for (const label patchI : forcePatches_)
+    {
+        const fvPatch& patch = mesh_.boundary()[patchI];
+        tmp<vectorField> tnf = patch.nf();
+        const vectorField& nf = tnf();
+
+        // First calculate the total force coefficient vector on the specific patch, which will be decomposed into lift and drag
+        // Total force is calculated using nf to get a face-centred value for sensitivity contributions
+        // vectorFields and scalarFields used, as the results isn't a simple sum as in the objective function derivation
+        const vectorField totalForce((nf * p.boundaryField()[patchI]) + (devReff_.boundaryField()[patchI] & nf));
+        const scalarField liftForce(totalForce & liftDirection_);
+        const scalarField dragForce(totalForce & dragDirection_);
+
+        vectorField liftContribution((liftDirection_& devReff_.boundaryField()[patchI]) + (liftDirection_)*p.boundaryField()[patchI]);
+        vectorField dragContribution((dragDirection_& devReff_.boundaryField()[patchI]) + (dragDirection_)*p.boundaryField()[patchI]);
+
+        bdSdbMultPtr_()[patchI].component(0) = liftContribution.component(0)/dragContribution.component(0);
+        bdSdbMultPtr_()[patchI].component(1) = liftContribution.component(1)/dragContribution.component(1);
+        bdSdbMultPtr_()[patchI].component(2) = liftContribution.component(2)/dragContribution.component(2);
+    }
+}
+
+
+void objectiveEfficiencyMN::update_dxdbMultiplier()
 {
     const volScalarField& p = vars_.p();
     const volVectorField& U = vars_.U();
 
     const autoPtr<incompressible::RASModelVariables>&
-       turbVars = vars_.RASModelVariables();
+        turbVars = vars_.RASModelVariables();
     const singlePhaseTransportModel& lamTransp = vars_.laminarTransport();
 
     volScalarField nuEff(lamTransp.nu() + turbVars->nutRef());
     volTensorField gradU(fvc::grad(U));
     volTensorField::Boundary& gradUbf = gradU.boundaryFieldRef();
 
-    // Explicitly correct the boundary gradient to get rid of the
-    // tangential component
+    // Explicitly correct the boundary gradient to get rid of
+    // the tangential component
     forAll(mesh_.boundary(), patchI)
     {
         const fvPatch& patch = mesh_.boundary()[patchI];
@@ -291,73 +264,75 @@ void objectiveDeltaCLMN::update_dxdbMultiplier()
     volTensorField gradStressY(fvc::grad(stressYPtr_()));
     volTensorField gradStressZ(fvc::grad(stressZPtr_()));
 
+    // the notorious second-order derivative at the wall. Use with caution!
     volVectorField gradp(fvc::grad(p));
 
-    for (const label patchI : objectivePatches_)
+    for (const label patchI : forcePatches_)
     {
         const fvPatch& patch = mesh_.boundary()[patchI];
         tmp<vectorField> tnf = patch.nf();
         const vectorField& nf = tnf();
-        vectorField dx(patch.Cf() - rotationCentre_);
-        vectorField aux(momentDirection_^dx);
+        
+        // First calculate the total force coefficient vector on the specific patch, which will be decomposed into lift and drag
+        // Total force is calculated using nf to get a face-centred value for sensitivity contributions
+        // vectorFields and scalarFields used, as the results isn't a simple sum as in the objective function derivation
+        const vectorField totalForce((nf * p.boundaryField()[patchI]) + (devReff_.boundaryField()[patchI] & nf));
+        const scalarField liftForce(totalForce & liftDirection_);
+        const scalarField dragForce(totalForce & dragDirection_);
+
+        vectorField liftContribution = 
+        (
+            (
+                (
+                   -(liftDirection_.x() * gradStressX.boundaryField()[patchI])
+                   -(liftDirection_.y() * gradStressY.boundaryField()[patchI])
+                   -(liftDirection_.z() * gradStressZ.boundaryField()[patchI])
+                ) & nf
+            )
+            + (liftDirection_ & nf)*gradp.boundaryField()[patchI]
+        );
+
+        vectorField dragContribution = 
+        (
+            (
+                (
+                   -(dragDirection_.x() * gradStressX.boundaryField()[patchI])
+                   -(dragDirection_.y() * gradStressY.boundaryField()[patchI])
+                   -(dragDirection_.z() * gradStressZ.boundaryField()[patchI])
+                ) & nf
+            )
+            + (dragDirection_ & nf)*gradp.boundaryField()[patchI]
+        );
+
         bdxdbMultPtr_()[patchI] =
         (
-            (
-                (
-                   -(aux.component(0) * gradStressX.boundaryField()[patchI])
-                   -(aux.component(1) * gradStressY.boundaryField()[patchI])
-                   -(aux.component(2) * gradStressZ.boundaryField()[patchI])
-                ) & nf
-            )
-            + (momentDirection_ & (dx^nf))*gradp.boundaryField()[patchI]
-        )
-        *invMomDenom_
-        -
-        (
-            (
-                (
-                   -(forceDirection_.x() * gradStressX.boundaryField()[patchI])
-                   -(forceDirection_.y() * gradStressY.boundaryField()[patchI])
-                   -(forceDirection_.z() * gradStressZ.boundaryField()[patchI])
-                ) & nf
-            )
-            + (forceDirection_ & nf)*gradp.boundaryField()[patchI]
-        )
-        *invDenom_;
+            (dragForce * liftContribution - liftForce * dragContribution)
+            /
+            (dragForce * dragForce)
+        );
     }
 }
 
 
-void objectiveDeltaCLMN::update_dJdStressMultiplier()
+void objectiveEfficiencyMN::update_dJdStressMultiplier()
 {
-    for (const label patchI : objectivePatches_)
-    {
-        const fvPatch& patch = mesh_.boundary()[patchI];
-        tmp<vectorField> tnf = patch.nf();
-        const vectorField& nf = tnf();
-        bdJdStressPtr_()[patchI] = -(forceDirection_ * nf)*invDenom_;
-    }
-}
-
-
-void objectiveDeltaCLMN::update_dxdbDirectMultiplier()
-{
+    // Compute contributions with mean fields, if present
     const volScalarField& p = vars_.p();
 
-    for (const label patchI : objectivePatches_)
+    for (const label patchI : forcePatches_)
     {
         const fvPatch& patch = mesh_.boundary()[patchI];
         tmp<vectorField> tnf = patch.nf();
         const vectorField& nf = tnf();
-        const vectorField force
-        (
-            (
-                ((p.boundaryField()[patchI]*nf)
-              + (devReff_.boundaryField()[patchI] & nf))
-            )
-        );
-        bdxdbDirectMultPtr_()[patchI] =
-            (force^momentDirection_)*invMomDenom_;
+        
+        // First calculate the total force coefficient vector on the specific patch, which will be decomposed into lift and drag
+        // Total force is calculated using nf to get a face-centred value for sensitivity contributions
+        // vectorFields and scalarFields used, as the results isn't a simple sum as in the objective function derivation
+        const vectorField totalForce((nf * p.boundaryField()[patchI]) + (devReff_.boundaryField()[patchI] & nf));
+        const scalarField liftForce(totalForce & liftDirection_);
+        const scalarField dragForce(totalForce & dragDirection_);
+
+        bdJdStressPtr_()[patchI] = (((liftDirection_ * nf) * dragForce) + ((dragDirection_ * nf) * liftForce)) / (dragForce * dragForce);
     }
 }
 
